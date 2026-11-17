@@ -1,0 +1,6 @@
+{
+  "name": "Retsspillet",
+  "description": "Interaktivt dansk 3D-retssalsspil hvor logisk kohærens, bevisvægt og skarp argumentation afgør sagen foran AI-jury og dommer.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
