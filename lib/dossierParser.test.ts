@@ -16,7 +16,7 @@ test('parseDossierText parses demo custom dossier into playable LegalCase', () =
   // Check exhibits
   const bilagA = c.evidence.find((e) => e.title.includes('Bilag A'));
   assert.ok(bilagA);
-  assert.equal(bilagA.type, 'technical');
+  assert.equal(bilagA.type, 'digital');
   assert.equal(bilagA.reliabilityWeight >= 8, true);
 
   const bilagD = c.evidence.find((e) => e.title.includes('Bilag D'));

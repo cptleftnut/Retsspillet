@@ -163,6 +163,15 @@ export function RetsspilletApp() {
   } | null>(null);
   const dossierToastTimerRef = useRef<number | null>(null);
 
+  // Jury Reaction Overlay State (Jury-reaktions-overlay)
+  const [juryReactionToast, setJuryReactionToast] = useState<{
+    id: string;
+    mood: 'doubt' | 'satisfaction' | 'tension' | 'insight';
+    text: string;
+    jurorLabel: string;
+  } | null>(null);
+  const juryReactionTimerRef = useRef<number | null>(null);
+
   // Autosave tracking
   const [lastAutosavedAt, setLastAutosavedAt] = useState<string | null>(null);
   const [savedSessionAvailable, setSavedSessionAvailable] =
@@ -754,6 +763,42 @@ export function RetsspilletApp() {
     } else {
       playSoundEffect('click');
     }
+
+    // Trigger Jury-reaktions-overlay
+    if (juryReactionTimerRef.current) {
+      window.clearTimeout(juryReactionTimerRef.current);
+    }
+    const coh = evaluation.coherenceScore;
+    const reb = evaluation.rebuttalScore;
+    const hasEvidence = selectedEvidenceIds.length > 0;
+    const moodType =
+      coh >= 68 && hasEvidence
+        ? 'satisfaction'
+        : evaluation.judicialWarning || coh < 48
+          ? 'doubt'
+          : reb >= 10
+            ? 'insight'
+            : 'tension';
+
+    const jurorNames = ['Nævning 1 (Formand)', 'Nævning 2', 'Nævning 3', 'Nævning 4', 'Nævning 5', 'Nævning 6'];
+    const randomJuror = jurorNames[Math.floor(Math.random() * jurorNames.length)];
+
+    const reactionTexts = {
+      satisfaction: 'nikker anerkendende og noterer stærk bevisvægt.',
+      doubt: 'rynker panden og udtrykker tvivl om argumentets holdbarhed.',
+      insight: 'reagerer skarpt på den fremlagte kontradiktion.',
+      tension: 'følger anbringendet med tæt og kritisk opmærksomhed.',
+    };
+
+    setJuryReactionToast({
+      id: `jury-react-${Date.now()}`,
+      mood: moodType,
+      text: reactionTexts[moodType],
+      jurorLabel: randomJuror,
+    });
+    juryReactionTimerRef.current = window.setTimeout(() => {
+      setJuryReactionToast(null);
+    }, 4500);
 
     if (tutorialActive) {
       if (!isCrossExam && tutorialStep <= 4) {
@@ -1436,6 +1481,49 @@ export function RetsspilletApp() {
               </div>
             </div>
           </div>
+
+          {/* Jury-reaktions-overlay (Jury Reaction Overlay over jury bench area) */}
+          {juryReactionToast && (
+            <div
+              data-testid="jury-reaction-overlay"
+              className="fixed top-20 right-6 z-40 pointer-events-none max-w-xs bg-[#F4EFE6]/98 border border-[#2A241E] rounded-[2px] p-3 shadow-xl"
+            >
+              <div className="flex items-center gap-2.5">
+                <span
+                  className={`w-7 h-7 flex items-center justify-center text-sm rounded-[2px] border shrink-0 ${
+                    juryReactionToast.mood === 'satisfaction'
+                      ? 'bg-[#FFF6E5] text-[#7D5B1E] border-[#D4A359]'
+                      : juryReactionToast.mood === 'doubt'
+                        ? 'bg-[#E3EAF2] text-[#1E3A5F] border-[#7CA3C9]'
+                        : juryReactionToast.mood === 'insight'
+                          ? 'bg-[#F3E5E5] text-[#7C2D2D] border-[#C8BCA8]'
+                          : 'bg-[#EAE3D5] text-[#3D352B] border-[#9F927E]'
+                  }`}
+                >
+                  {juryReactionToast.mood === 'satisfaction'
+                    ? '👍'
+                    : juryReactionToast.mood === 'doubt'
+                      ? '🤔'
+                      : juryReactionToast.mood === 'insight'
+                        ? '💡'
+                        : '⚖️'}
+                </span>
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-serif font-bold text-xs text-[#1C1917]">
+                      {juryReactionToast.jurorLabel}
+                    </span>
+                    <span className="text-[9px] font-mono px-1 py-0.2 bg-[#EAE3D5] border border-[#C8BCA8] rounded-[2px]">
+                      Jury-reaktion
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-[#4A4035] leading-snug mt-0.5">
+                    {juryReactionToast.text}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Single flat control-hint line at bottom */}
           <div className="pointer-events-none flex justify-center">

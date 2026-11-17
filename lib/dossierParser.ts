@@ -1,4 +1,4 @@
-import type { EvidenceItem, LearningLevel, LegalCase, WitnessItem } from './types';
+import type { EvidenceItem, LearningLevel, LegalCase, CaseWitness } from './types';
 
 export interface ParsedDossierResult {
   legalCase: LegalCase;
@@ -92,18 +92,18 @@ export function parseDossierText(
     const lower = `${exTitle} ${exBody}`.toLowerCase();
     const type: EvidenceItem['type'] =
       /kamera|overvågning|foto|billede|video/i.test(lower)
-        ? 'surveillance'
-        : /log|nøgle|adgang|server|gps|signal|tele/i.test(lower)
-          ? 'technical'
+        ? 'video'
+        : /log|nøgle|adgang|server|gps|signal|tele|alarm|vagt|sikkerhed/i.test(lower)
+          ? 'digital'
           : /vidne|forklaring|udsagn/i.test(lower)
-            ? 'testimony'
-            : /kvittering|faktura|kontoudtog|mail/i.test(lower)
-              ? 'document'
+            ? 'witness'
+            : /kvittering|faktura|kontoudtog|mail|fysisk|genstand/i.test(lower)
+              ? 'physical'
               : 'document';
 
     // Reliability weight
     let weight = 7;
-    if (/primærbevis|adgangslog|dna|fingeraftryk|kamera kl\.|stempling/i.test(lower)) weight = 9;
+    if (/primærbevis|adgangslog|log|logbog|alarm|vagt|sikkerhed|dna|fingeraftryk|kamera kl\.|stempling/i.test(lower)) weight = 9;
     else if (/kvittering|kontoudtog|tidsstempel/i.test(lower)) weight = 8;
     else if (/gammel|udateret|uoverensstemmelse|usikker/i.test(lower)) weight = 4;
 
@@ -148,7 +148,7 @@ export function parseDossierText(
       exhibits.push({
         id: `ev-cust-2-${Date.now()}`,
         title: 'Bilag B: Tidsstempling & Registrering',
-        type: 'technical',
+        type: 'digital',
         summary: paragraphs[1].slice(0, 110),
         detail: paragraphs[1].slice(0, 350),
         reliabilityWeight: 8,
@@ -172,7 +172,7 @@ export function parseDossierText(
   }
 
   // 7. Extract Witnesses
-  const witnesses: WitnessItem[] = [];
+  const witnesses: CaseWitness[] = [];
   const witnessRegex = /vidne(?:\s*\d+)?:\s*([A-ZÆØÅ][a-zæøå]+(?:\s+[A-ZÆØÅ][a-zæøå]+)*)\s*(?:\(([^)]+)\))?[:\s-]+([^\n]+)/gi;
   let witMatch: RegExpExecArray | null;
 

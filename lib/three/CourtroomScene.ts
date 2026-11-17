@@ -27,6 +27,7 @@ export type CourtMoodLevel = 'warm' | 'neutral' | 'tense';
 export interface CourtroomCallbacks {
   onSelectEvidence?: (evidenceId: string) => void;
   onHoverEvidence?: (evidenceId: string | null) => void;
+  onSelectJuror?: (jurorIndex: number) => void;
 }
 
 // Pre-allocated scratch vectors & colors for zero-GC animation loop
@@ -469,6 +470,7 @@ export class CourtroomSceneManager {
   private baseMoodState: CourtMoodLevel = 'neutral';
   private manualMoodOverride: CourtMoodLevel | 'auto' = 'auto';
   private criticalMoodTimer = 0;
+  private judgeExpressionMode: 'normal' | 'head_shake' | 'intense_focus' = 'normal';
   private baseThemeBgHex = 0x28211b;
 
   constructor(container: HTMLElement, callbacks: CourtroomCallbacks = {}) {
@@ -1169,7 +1171,7 @@ export class CourtroomSceneManager {
     this.scene.add(witness.root);
     this.characters.set('Vidne', witness);
 
-    // 6 Articulated Jury Members in the Jury Box (matching 6-seat jury voting)
+    // 6 Articulated Jury Members in the Jury Box with clickable name plates
     const jurorSkins = [0xf2cbb0, 0xe4b293, 0xd49a79, 0xf0c6a8, 0xe8ba9c, 0xcf9473];
     const jurorAccents = [0x8b7e6d, 0x6f6356, 0x7c2d2d, 0x1e3a5f, 0x8b7e6d, 0x6f6356];
     this.jurors = [];
@@ -1185,6 +1187,20 @@ export class CourtroomSceneManager {
       juror.baseY = 0.25;
       this.scene.add(juror.root);
       this.jurors.push(juror);
+
+      // Clickable name plate mesh under juror bench
+      const plateGeo = new THREE.BoxGeometry(0.38, 0.08, 0.44);
+      const plateMat = new THREE.MeshStandardMaterial({
+        color: 0x2b241e,
+        roughness: 0.35,
+        metalness: 0.7,
+      });
+      const plateMesh = new THREE.Mesh(plateGeo, plateMat);
+      plateMesh.position.set(5.35, 0.12, -3.9 + i * 0.76);
+      plateMesh.layers.set(1);
+      plateMesh.userData.jurorIndex = i;
+      this.clickableMeshes.push(plateMesh);
+      this.scene.add(plateMesh);
     }
   }
 
@@ -1264,7 +1280,7 @@ export class CourtroomSceneManager {
     this.activeAttachmentAnim = {
       evidenceId,
       isKeyEvidence,
-      startTime: this.clock.getElapsedTime(),
+      startTime: typeof performance !== 'undefined' ? performance.now() / 1000 : Date.now() / 1000,
       duration: isKeyEvidence ? 3.0 : 2.4,
     };
   }
@@ -1393,6 +1409,10 @@ export class CourtroomSceneManager {
     this.manualMoodOverride = override;
   }
 
+  public setJudgeExpression(mode: 'normal' | 'head_shake' | 'intense_focus') {
+    this.judgeExpressionMode = mode;
+  }
+
   public triggerCriticalObjectionMood(durationSec = 4.2) {
     this.criticalMoodTimer = Math.max(this.criticalMoodTimer, durationSec);
   }
@@ -1468,10 +1488,14 @@ export class CourtroomSceneManager {
         _raycaster.setFromCamera(_pointer, this.camera);
         const hits = _raycaster.intersectObjects(this.clickableMeshes, false);
         if (hits.length > 0) {
-          const evId = hits[0].object.userData.evidenceId as string;
+          const clickedObj = hits[0].object;
+          const evId = clickedObj.userData.evidenceId as string;
+          const jurorIdx = clickedObj.userData.jurorIndex as number;
           if (evId) {
             this.selectedEvidenceId = evId;
             this.callbacks.onSelectEvidence?.(evId);
+          } else if (typeof jurorIdx === 'number') {
+            this.callbacks.onSelectJuror?.(jurorIdx);
           }
         }
       }
@@ -1637,6 +1661,11 @@ export class CourtroomSceneManager {
       dt
     );
 
+    if (this.keyLight && this.keyLight.shadow) {
+      const targetBias = effectiveMood === 'tense' ? -0.0008 : effectiveMood === 'warm' ? -0.00035 : -0.0005;
+      this.keyLight.shadow.bias = THREE.MathUtils.damp(this.keyLight.shadow.bias, targetBias, 6, dt);
+    }
+
     if (this.scene.background instanceof THREE.Color) {
       this.scene.background.lerp(_moodBgTarget, moodAlpha);
     }
@@ -1780,6 +1809,16 @@ export class CourtroomSceneManager {
         rig.leftArm.rotation.z = THREE.MathUtils.damp(rig.leftArm.rotation.z, 0, 8, dt);
         rig.head.rotation.x = Math.max(-0.08, -gavelAngle * 0.09);
         rig.head.rotation.z = THREE.MathUtils.damp(rig.head.rotation.z, 0, 8, dt);
+      } else if (role === 'Dommer' && this.judgeExpressionMode === 'head_shake') {
+        rig.head.rotation.y = Math.sin(elapsed * 12.0) * 0.24;
+        rig.head.rotation.x = 0.12;
+        rig.rightArm.rotation.x = THREE.MathUtils.damp(rig.rightArm.rotation.x, -0.88, 8, dt);
+        rig.leftArm.rotation.x = THREE.MathUtils.damp(rig.leftArm.rotation.x, -0.4, 8, dt);
+      } else if (role === 'Dommer' && this.judgeExpressionMode === 'intense_focus') {
+        rig.head.rotation.x = THREE.MathUtils.damp(rig.head.rotation.x, 0.38, 10, dt);
+        rig.head.rotation.y = THREE.MathUtils.damp(rig.head.rotation.y, 0, 10, dt);
+        rig.rightArm.rotation.x = THREE.MathUtils.damp(rig.rightArm.rotation.x, -0.65, 10, dt);
+        rig.leftArm.rotation.x = THREE.MathUtils.damp(rig.leftArm.rotation.x, -0.65, 10, dt);
       } else if (activeGesture === 'read_papers') {
         rig.head.rotation.x = THREE.MathUtils.damp(rig.head.rotation.x, 0.28, 8, dt);
         rig.head.rotation.y = Math.sin(elapsed * 2.6) * 0.09;
